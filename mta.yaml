@@ -1,0 +1,74 @@
+## Generated mta.yaml based on template version 0.4.0
+## appName = CAPTraining
+## language=java; multiTenant=false
+## approuter=
+_schema-version: '3.1'
+ID: CAPTraining
+version: 1.0.0
+description: "CAPTraining application"
+parameters:
+  enable-parallel-deployments: true
+   
+build-parameters:
+  before-all:
+   - builder: custom
+     commands:
+      - npm install
+      - npx cds build
+
+modules:
+ # --------------------- SERVER MODULE ------------------------
+ - name: CAPTraining-srv
+ # ------------------------------------------------------------
+   type: java
+   path: srv
+   build-parameters:
+     builder: custom
+     commands: [ mvn clean package ]
+     build-result: "target/*.[wj]ar"
+   requires:
+    # Resources extracted from CAP configuration
+    - name: CAPTraining-db
+      properties:
+        SPRING_PROFILES_ACTIVE: cloud
+   provides:
+    - name: srv-api      # required by consumers of CAP services (e.g. approuter)
+      properties:
+        srv-url: ${default-url}
+
+ # -------------------- SIDECAR MODULE ------------------------
+ - name: CAPTraining-db-deployer
+ # ------------------------------------------------------------
+   type: hdb
+   path: db  
+   parameters:
+     buildpack: nodejs_buildpack
+   requires:
+    # 'hana' and 'xsuaa' resources extracted from CAP configuration
+    - name: CAPTraining-db
+    - name: CAPTraining-uaa
+
+
+resources:
+ # services extracted from CAP configuration
+ # 'service-plan' can be configured via 'cds.requires.<name>.vcap.plan'
+# ------------------------------------------------------------
+ - name: CAPTraining-db
+# ------------------------------------------------------------
+   type: com.sap.xs.hdi-container
+   parameters:
+     service: hanatrial  # or 'hanatrial' on trial landscapes
+     service-plan: hdi-shared
+   properties:
+     hdi-service-name: ${service-name}
+
+ - name: CAPTraining-uaa
+   type: org.cloudfoundry.managed-service
+   parameters:
+    path: ./xs-security.json
+    service: xsuaa
+    service-plan: application
+    config:
+      xsappname: CAPTraining-${space}
+      tenant-mode: dedicated   
+
